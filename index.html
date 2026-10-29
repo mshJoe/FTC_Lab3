@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>بوابة FTC — الخريجين</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<canvas id="waves" aria-hidden="true"></canvas>
+
+<div id="app" dir="rtl" lang="ar">
+  <!-- Page header -->
+  <header class="head">
+    <div class="title-wrap">
+      <div class="icon-box" aria-hidden="true" data-ic="cap"></div>
+      <div>
+        <h1>الخريجين</h1>
+        <div class="chips" id="head-chips">
+          <span class="chip"><span data-ic="code"></span>لجنة التقنية</span>
+          <span class="chip ghost" id="demo-chip" hidden>بيانات تجريبية</span>
+          <span class="chip sim" id="sim-chip" hidden></span>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-end">
+      <div style="position:relative" id="mpicker-host"></div>
+      <div class="stats" id="stats" role="group" aria-label="عدد الخريجين حسب الحالة"></div>
+    </div>
+  </header>
+
+  <section class="banner">
+    <div>
+      <h2>خريجينا امتداد النادي</h2>
+      <p>تواصل معهم، رتّب جلساتهم، وخلّ كل دعوة واضحة من أول رسالة</p>
+    </div>
+    <svg class="mark" viewBox="0 0 100 100" aria-hidden="true"><g fill="none" stroke="#fff" stroke-width="9" stroke-linejoin="round" stroke-linecap="round"><path d="M18 86 L50 22 L82 86"/><path d="M34 62 H66"/><path d="M50 22 V8"/></g></svg>
+  </section>
+
+  <main id="pages">
+    <!-- Tab: الخريجين -->
+    <section class="page on" id="page-grads">
+      <section class="card event" id="event"></section>
+      <div id="pend-host"></div>
+      <section class="card grads">
+        <div class="sec-head">
+          <div>
+            <h2>دليل الخريجين</h2>
+            <div class="sub">اضغط على اسم أي خريج يفتح سجله الكامل. تاريخ آخر تواصل يتحدث تلقائياً.</div>
+          </div>
+        </div>
+
+        <div class="addbar">
+          <div class="search" style="flex:1 1 300px">
+            <span data-ic="plus"></span>
+            <input id="qa-input" type="text" placeholder="الصق رقم، إيميل، أو حساب لينكد إن — أو سطر كامل مثل: فهد الحربي 0534410098" autocomplete="off">
+          </div>
+          <button class="btn primary" id="qa-add">أضف</button>
+        </div>
+
+        <div class="toolbar">
+          <div class="search">
+            <span data-ic="search"></span>
+            <input id="q" type="search" placeholder="ابحث باسم الخريج، جهة العمل، أو وسيلة التواصل…" autocomplete="off">
+          </div>
+          <select id="f-year" class="sel" aria-label="سنة التخرج"></select>
+          <select id="f-ct" class="sel" aria-label="وسيلة التواصل">
+            <option value="">كل وسائل التواصل</option>
+            <option value="email">Gmail</option>
+            <option value="linkedin">LinkedIn</option>
+            <option value="phone">رقم جوال</option>
+          </select>
+          <select id="f-owner" class="sel" aria-label="مسؤول التواصل"></select>
+        </div>
+
+        <div class="filter-row" id="filter-row"></div>
+        <div class="bulk" id="bulk" hidden></div>
+        <div id="tbl-host"></div>
+        <div class="cards" id="cards-host"></div>
+      </section>
+
+      <details class="card wiz" id="wiz">
+        <summary><span data-ic="download"></span><h2>إضافة من ملف أو لصق</h2><span class="sub">انسخ الأعمدة من قوقل شيت، أو ارفع ملف CSV. بنحاول نعرّف الأعمدة تلقائياً وقسم التحقق قبل الحفظ.</span><span style="margin-inline-start:auto"></span><span data-ic="down" class="d-arw"></span></summary>
+        <div class="wz-body">
+          <textarea id="wiz-text" placeholder="الصق هنا الجدول من قوقل شيت أو إكسل…" spellcheck="false"></textarea>
+          <div class="wz-tools">
+            <label class="btn" for="wiz-file-file">اختيار ملف CSV</label>
+            <input id="wiz-file-file" type="file" accept=".csv,text/csv" style="position:absolute;width:1px;height:1px;opacity:0" tabindex="-1">
+            <button class="btn primary" id="wiz-review" disabled><span data-ic="check"></span>استعرض قبل الحفظ</button>
+            <span class="sub" id="wiz-note"></span>
+          </div>
+          <div id="wiz-preview"></div>
+        </div>
+      </details>
+    </section>
+
+    <!-- Tab: الجلسات -->
+    <section class="page" id="page-sessions">
+      <section class="card sched" id="sched-card">
+        <div class="sec-head">
+          <div>
+            <h2>جدولة جلسة مع خريج</h2>
+            <div class="sub">بعد ما يوافق الخريج وتتفقون على موعد، سجّله هنا. النظام يمنع تعارض المواعيد.</div>
+          </div>
+        </div>
+
+        <div class="form">
+          <div class="field f-grad">
+            <label for="g-input">الخريج</label>
+            <div class="combo" id="combo">
+              <span data-ic="search"></span>
+              <input id="g-input" class="inp" type="text" placeholder="اكتب اسم الخريج…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="g-list">
+              <ul class="g-list" id="g-list" role="listbox" hidden></ul>
+            </div>
+            <div class="g-chip" id="g-chip" hidden></div>
+          </div>
+          <div class="field">
+            <label for="s-date">التاريخ</label>
+            <input id="s-date" class="inp" type="date">
+          </div>
+          <div class="field">
+            <label for="s-time">وقت البداية</label>
+            <input id="s-time" class="inp" type="time" value="19:00" step="900">
+          </div>
+          <div class="field">
+            <label for="s-dur">المدة</label>
+            <select id="s-dur" class="inp sel">
+              <option value="30">30 دقيقة</option>
+              <option value="45">45 دقيقة</option>
+              <option value="60" selected>ساعة</option>
+              <option value="90">ساعة ونص</option>
+            </select>
+          </div>
+          <div class="field f-topic">
+            <label for="s-topic">عنوان الجلسة (اختياري)</label>
+            <input id="s-topic" class="inp" type="text" placeholder="مثال: رحلتي من التخرج إلى أول وظيفة">
+          </div>
+          <div class="field f-go">
+            <button class="btn primary" id="s-submit" disabled><span data-ic="cal"></span>تأكيد الموعد</button>
+          </div>
+        </div>
+
+        <div class="msgs" id="s-msgs" aria-live="polite"></div>
+
+        <div class="pre-book" id="pre-book"></div>
+
+        <div>
+          <div class="sub" style="margin-bottom:8px">الأسبوعين الجايين · اضغط على يوم لاختياره</div>
+          <div class="strip-wrap"><div class="strip" id="strip"></div></div>
+        </div>
+
+        <div id="reminders" style="display:flex;flex-direction:column;gap:8px"></div>
+
+        <div class="sess-head">
+          <h3>الجلسات القادمة</h3>
+          <span class="sub" id="sess-count"></span>
+        </div>
+        <div id="sess-host"></div>
+      </section>
+
+      <section class="card sched" id="archive-card-wrap">
+        <div class="sess-head">
+          <h3>أرشيف الجلسات</h3>
+          <div class="search" style="flex:1 1 220px">
+            <span data-ic="search"></span>
+            <input id="arch-q" type="search" placeholder="ابحث بالاسم أو العنوان…" autocomplete="off">
+          </div>
+        </div>
+        <div class="sub" id="arch-count" style="margin-bottom:8px"></div>
+        <div id="arch-host"></div>
+      </section>
+    </section>
+
+    <!-- Tab: المهملات -->
+    <section class="page" id="page-trash">
+      <section class="card sched" id="trash-card"></section>
+    </section>
+
+    <!-- Tab: الإعدادات -->
+    <section class="page" id="page-settings">
+      <section class="card sched" id="settings-card"></section>
+    </section>
+  </main>
+
+  <!-- Prototype testing (gated ?test=1) -->
+  <section class="card testbox" id="testbox" hidden>
+    <div class="lbl"><b>وضع الاختبار</b> · غيّر "تاريخ اليوم" عشان تجرب التذكير وهو يظهر ويختفي. البيانات محفوظة في متصفحك فقط.</div>
+    <input type="date" id="t-date" class="inp" aria-label="تاريخ المحاكاة">
+    <button class="btn sm" id="t-prev">يوم ورا</button>
+    <button class="btn sm" id="t-next">يوم قدام</button>
+    <button class="btn sm" id="t-real">تاريخ اليوم الحقيقي</button>
+    <button class="btn sm danger" id="t-reset">إعادة البيانات التجريبية</button>
+    <button class="btn sm" id="t-run" hidden>شغّل الفحوص</button>
+  </section>
+</div>
+
+<div class="backdrop" id="backdrop"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="سجل الخريج"></aside>
+<div class="modal" id="modal" role="dialog" aria-modal="true"></div>
+
+<nav class="nav" id="nav" dir="rtl" aria-label="التنقل الرئيسي">
+  <button class="on" data-tab="grads" aria-current="page"><span data-ic="cap"></span>الخريجين</button>
+  <button data-tab="sessions"><span data-ic="cal"></span>الجلسات</button>
+  <button data-tab="trash"><span data-ic="trash"></span>المهملات<i class="ndot" id="trash-dot" hidden></i></button>
+  <button data-tab="settings"><span data-ic="gear"></span>الإعدادات</button>
+</nav>
+
+<div class="toast" id="toast" role="status"></div>
+<script src="js/icons.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/constants.js"></script>
+<script src="js/store.js"></script>
+<script src="js/repo.js"></script>
+<script src="js/templates.js"></script>
+<script src="js/importer.js"></script>
+<script src="js/ui-shell.js"></script>
+<script src="js/ui-grads.js"></script>
+<script src="js/scheduler.js"></script>
+<script src="js/drawer.js"></script>
+<script src="js/pages.js"></script>
+<script src="js/wizard.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
