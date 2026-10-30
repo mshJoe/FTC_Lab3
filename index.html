@@ -40,9 +40,17 @@
     <svg class="mark" viewBox="0 0 100 100" aria-hidden="true"><g fill="none" stroke="#fff" stroke-width="9" stroke-linejoin="round" stroke-linecap="round"><path d="M18 86 L50 22 L82 86"/><path d="M34 62 H66"/><path d="M50 22 V8"/></g></svg>
   </section>
 
+  <!-- R-06: functional tab bar — sticky top, tablist contract, roving tabindex -->
+  <nav class="tabbar" id="tabbar" role="tablist" aria-label="أقسام بوابة الخريجين">
+    <button type="button" role="tab" id="tab-grads" data-tab="grads" aria-selected="true" aria-controls="page-grads" aria-current="page">الخريجين</button>
+    <button type="button" role="tab" id="tab-sessions" data-tab="sessions" aria-selected="false" aria-controls="page-sessions" tabindex="-1">الجلسات</button>
+    <button type="button" role="tab" id="tab-trash" data-tab="trash" aria-selected="false" aria-controls="page-trash" tabindex="-1">المهملات<i class="ndot" id="trash-dot" role="status" aria-label="المهملات: 0" hidden></i></button>
+    <button type="button" role="tab" id="tab-settings" data-tab="settings" aria-selected="false" aria-controls="page-settings" tabindex="-1">الإعدادات</button>
+  </nav>
+
   <main id="pages">
     <!-- Tab: الخريجين -->
-    <section class="page on" id="page-grads">
+    <section class="page on" id="page-grads" role="tabpanel" aria-labelledby="tab-grads">
       <section class="card event" id="event"></section>
       <div id="pend-host"></div>
       <section class="card grads">
@@ -98,7 +106,7 @@
     </section>
 
     <!-- Tab: الجلسات -->
-    <section class="page" id="page-sessions">
+    <section class="page" id="page-sessions" role="tabpanel" aria-labelledby="tab-sessions">
       <section class="card sched" id="sched-card">
         <div class="sec-head">
           <div>
@@ -175,12 +183,12 @@
     </section>
 
     <!-- Tab: المهملات -->
-    <section class="page" id="page-trash">
+    <section class="page" id="page-trash" role="tabpanel" aria-labelledby="tab-trash">
       <section class="card sched" id="trash-card"></section>
     </section>
 
     <!-- Tab: الإعدادات -->
-    <section class="page" id="page-settings">
+    <section class="page" id="page-settings" role="tabpanel" aria-labelledby="tab-settings">
       <section class="card sched" id="settings-card"></section>
     </section>
   </main>
@@ -189,6 +197,7 @@
   <section class="card testbox" id="testbox" hidden>
     <div class="lbl"><b>وضع الاختبار</b> · غيّر "تاريخ اليوم" عشان تجرب التذكير وهو يظهر ويختفي. البيانات محفوظة في متصفحك فقط.</div>
     <input type="date" id="t-date" class="inp" aria-label="تاريخ المحاكاة">
+    <select id="t-scenario" class="sel" aria-label="سيناريو البيانات" style="width:auto"></select>
     <button class="btn sm" id="t-prev">يوم ورا</button>
     <button class="btn sm" id="t-next">يوم قدام</button>
     <button class="btn sm" id="t-real">تاريخ اليوم الحقيقي</button>
@@ -201,11 +210,14 @@
 <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="سجل الخريج"></aside>
 <div class="modal" id="modal" role="dialog" aria-modal="true"></div>
 
-<nav class="nav" id="nav" dir="rtl" aria-label="التنقل الرئيسي">
-  <button class="on" data-tab="grads" aria-current="page"><span data-ic="cap"></span>الخريجين</button>
-  <button data-tab="sessions"><span data-ic="cal"></span>الجلسات</button>
-  <button data-tab="trash"><span data-ic="trash"></span>المهملات<i class="ndot" id="trash-dot" hidden></i></button>
-  <button data-tab="settings"><span data-ic="gear"></span>الإعدادات</button>
+<!-- Bottom nav mirrors the FTC portal — identity only; the functional tabs live in #tabbar -->
+<nav class="nav" id="nav" dir="rtl" aria-label="بوابة FTC (عرض فقط)">
+  <button class="on" data-tab="الخريجين" aria-current="page"><span data-ic="cap"></span>الخريجين<i class="new-dot" aria-hidden="true"></i></button>
+  <button data-tab="اللابات"><span data-ic="flask"></span>اللابات</button>
+  <button data-tab="المهام"><span data-ic="tasks"></span>المهام</button>
+  <button data-tab="المجتمع"><span data-ic="users"></span>المجتمع</button>
+  <button data-tab="الصدارة"><span data-ic="trophy"></span>الصدارة</button>
+  <button data-tab="حسابي"><span data-ic="user"></span>حسابي</button>
 </nav>
 
 <div class="toast" id="toast" role="status"></div>

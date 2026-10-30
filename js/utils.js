@@ -83,6 +83,7 @@ const BAD_DOMAINS={'gmail.con':'gmail.com','gmai.com':'gmail.com','gamil.com':'g
 function emailCanonical(raw){
   const v=stripWSp(raw).replace(/\s+/g,'').trim().toLowerCase();
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v))return null;
+  if(!/^[\x20-\x7e]+$/.test(v))return null;
   const dom=v.split('@')[1];
   return {value:v,suggest:BAD_DOMAINS[dom]||null};
 }
@@ -107,4 +108,9 @@ const emailKey=v=>{const e=emailCanonical(v);return 'email|'+((e&&e.value)||Stri
 const liKey=v=>{const l=linkedinCanonical(v);return 'linkedin|'+((l)||String(v||'').trim().toLowerCase())};
 const compactKey=(t,v)=>t==='phone'?phoneKey(v):t==='email'?emailKey(v):t==='linkedin'?liKey(v):t+'|'+v;
 const PLACEHOLDER_NAME='(بدون اسم)';
+/* R-03: only real http(s) URLs may become hrefs — javascript:/data: and friends are dropped */
+function safeUrl(u){
+  const s=String(u??'').trim();
+  return /^https?:\/\//i.test(s)?s:'';
+}
 

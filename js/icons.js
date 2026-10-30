@@ -28,7 +28,11 @@ const ICONS={
   users:'<circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16.5 5.6a3.5 3.5 0 0 1 0 5.8M17.5 14.6a6.5 6.5 0 0 1 4 5.4"/>',
   flag:'<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>',
   lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
-  note:'<path d="M5 4h14v11l-5 5H5z"/><path d="M14 20v-5h5"/>'
+  note:'<path d="M5 4h14v11l-5 5H5z"/><path d="M14 20v-5h5"/>',
+  upload:'<path d="M12 21V9"/><path d="M7 14l5-5 5 5"/><path d="M4 5h16"/>',
+  flask:'<path d="M9 3h6"/><path d="M10 3v6L5 19a1.5 1.5 0 0 0 1.3 2h11.4a1.5 1.5 0 0 0 1.3-2L14 9V3"/><path d="M7.5 15h9"/>',
+  tasks:'<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8.5 12l2.5 2.5 4.5-5"/>',
+  trophy:'<path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4"/><path d="M12 13v4M9 20h6"/>'
 };
 const ic=(n,c='')=>`<svg class="i ${c}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]||''}</svg>`;
 document.querySelectorAll('[data-ic]').forEach(e=>{e.outerHTML=ic(e.dataset.ic,e.className||'')});

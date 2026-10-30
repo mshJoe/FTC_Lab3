@@ -20,10 +20,14 @@ function matchSynonym(label){
       if(q===ns)return f;
     }
   }
+  /* fuzzy pass tolerant to the definite article (الدفعة→دفعة) */
+  const qs=q.replace(/^ال/,'');
   for(const f of FIELDS){
     for(const syn of SYNONYMS[f]){
-      const ns=norm(syn);
-      if(q.startsWith(ns)||ns.startsWith(q)&&q.length>=3)return f;
+      const ns=norm(syn).replace(/^ال/,'');
+      if(!ns)continue;
+      if(q===ns)return f;
+      if((qs.startsWith(ns)||ns.startsWith(qs))&&q.length>=3)return f;
     }
   }
   return null;
@@ -169,9 +173,17 @@ async function diffCandidates(cands){
     const row={c,level:null,notes:null,suppressed:false,matched:null,action:null};
     const v=validateCandidate(c);
     row.level=v.level;row.notes=v.notes||[];
+    if(c.suggest&&!c.emails.some(e=>e.endsWith(c.suggest)))row.notes.push('هل تقصد '+c.suggest+'؟');
     if(v.level==='bad'){row.result='bad';rows.push(row);continue}
     row.suppressed=await suppressionMatch(c);
-    const g=findMatchByContacts(c);
+    /* Q-02: contactless candidates match an existing contactless record by normalized name
+       so a re-import updates it instead of adding a duplicate — contacted alumni are never name-matched */
+    let g=findMatchByContacts(c);
+    if(!g&&!(c.phones.length||c.emails.length||c.linkedins.length)&&c.name&&c.name!==PLACEHOLDER_NAME){
+      const nm=norm(c.name);
+      g=liveGrads().find(gg=>norm(gg.name||'')===nm&&!((gg.contacts||[]).some(x=>cleanContact(x.type,x.value).ok)))||null;
+      if(g)row.notes.push('مطابق بالاسم (بدون وسيلة تواصل)');
+    }
     if(row.suppressed){row.result='blocked';row.notes.push('محجوب (سجل منع)');rows.push(row);continue}
     if(g&&g.doNotContact){row.result='blocked';row.matched=g;row.notes.push('محجوب (خريج طلب عدم التواصل)');rows.push(row);continue}
     row.matched=g||null;
@@ -212,7 +224,7 @@ function applyUpdate(g,c){
 function commitImport(rows){
   const counts={added:0,updated:0,unchanged:0,blocked:0,merge:0};
   rows.forEach(r=>{if(r.result==='blocked')counts.blocked++;});
-  const snaps=[snapArr(D.grads),snapMap(D.states),snapArr(D.timeline),snapArr(D.importBatches)];
+  const snaps=[snapArr('grads'),snapMap(D.states),snapArr('timeline'),snapArr('importBatches')];
   const batch={id:uid('b'),ts:nowISO(),counts,createdBy:me(),purgeAt:Date.now()+30*60*1000,snapshot:{addedIds:[],prev:{},tlLen:D.timeline.length}};
   const e=activeEvent();
   rows.forEach(r=>{
@@ -273,14 +285,28 @@ function buildChannelMessage(g,ch){
   return r;
 }
 function channelHref(g,ch,msg){
+  /* R-28: every href is built ONLY from a canonically-valid value — reject otherwise (empty string) */
   const body=encodeURIComponent(msg);
-  if(ch.kind==='wa')return `https://wa.me/${waNum(ch.value)}?text=${body}`;
-  if(ch.kind==='gmail'){
-    const ev=activeEvent();
-    return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(ch.value)}&su=${encodeURIComponent('دعوة: '+(ev?ev.name:'جلسة خريج')+' — نادي FTC')}&body=${body}`;
+  if(ch.kind==='wa'){
+    const c=phoneCanonical(ch.value);
+    if(!c)return '';
+    return `https://wa.me/${waNum(c)}?text=${body}`;
   }
-  return `https://www.linkedin.com/in/${encodeURIComponent(ch.value)}/`;
+  if(ch.kind==='gmail'){
+    const em=cleanContact('email',ch.value);
+    if(!em||!em.ok)return '';
+    const ev=activeEvent();
+    return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(em.value)}&su=${encodeURIComponent('دعوة: '+(ev?ev.name:'جلسة خريج')+' — نادي FTC')}&body=${body}`;
+  }
+  const l=cleanContact('linkedin',ch.value);
+  if(!l||!l.ok)return '';
+  return `https://www.linkedin.com/in/${encodeURIComponent(l.value)}/`;
 }
 const liHandle=v=>{const cl=cleanContact('linkedin',v);return cl&&cl.ok?cl.value:String(v||'').replace(/^@|\/+$/g,'')};
-const liUrl=g=>`https://www.linkedin.com/in/${encodeURIComponent(liHandle(((g.contacts||[]).find(c=>c.type==='linkedin')||{}).value||''))}/`;
+/* R-28: liUrl must never emit a link with a non-canonical handle */
+function liUrl(g){
+  const c=(g.contacts||[]).find(x=>x.type==='linkedin');
+  const l=c&&cleanContact('linkedin',c.value);
+  return (l&&l.ok)?`https://www.linkedin.com/in/${encodeURIComponent(l.value)}/`:'';
+}
 

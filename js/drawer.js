@@ -1,5 +1,16 @@
 /* ================= Drawer (alumnus record) ================= */
-function openDrawer(gid){
+let lastDrawerOpener=null,lastModalOpener=null;
+const FOCUSABLE='button:not([hidden]),input:not([hidden]),select:not([hidden]),textarea:not([hidden]),a[href],[tabindex]:not([tabindex="-1"])';
+function trapFocus(container,e){
+  const items=[...(container||document).querySelectorAll(FOCUSABLE)].filter(el=>el.offsetParent!==null||el===document.activeElement);
+  if(!items.length)return;
+  const first=items[0],last=items[items.length-1];
+  if(!container.contains(document.activeElement)){first.focus();e.preventDefault();return}
+  if(e.shiftKey&&document.activeElement===first){last.focus();e.preventDefault()}
+  else if(!e.shiftKey&&document.activeElement===last){first.focus();e.preventDefault()}
+}
+function openDrawer(gid,trigger){
+  lastDrawerOpener=trigger||(document.activeElement instanceof HTMLElement?document.activeElement:null)||lastDrawerOpener;
   drawerId=gid;drawerEditMode=false;drawerNoteOpen=false;
   renderDrawer();
   $('drawer').classList.add('on');
@@ -15,6 +26,8 @@ function closeDrawer(){
   $('backdrop').classList.remove('on');
   setTimeout(()=>{if(drawerId===null)$('backdrop').hidden=true},260);
   document.body.style.overflow='';
+  /* R-30: give focus back to whoever opened it */
+  if(lastDrawerOpener&&document.contains(lastDrawerOpener)){lastDrawerOpener.focus();lastDrawerOpener=null}
 }
 function renderDrawer(){
   const g=drawerId?gradById(drawerId):null;
@@ -24,7 +37,7 @@ function renderDrawer(){
   d.innerHTML=`
   <div class="drawer-head">
     <div style="flex:1;min-width:0">
-      <div class="dh-name">${esc(g.name)} ${g.doNotContact?`<span class="pill" style="--c:var(--s-no)">${ic('lock')}لا تتواصل</span>`:''}</div>
+      <div class="dh-name">${esc(g.name)} ${g.doNotContact?`<span class="pill" style="--c:var(--s-no)">${ic('lock')}لا تتواصل</span>`:''}${DEMO_MODE&&g.demoNote?`<span class="demo-note-tag" title="ملاحظة من بيانات العرض التجريبي">${esc(g.demoNote)}</span>`:''}</div>
       <div class="sub">${esc(g.major)}${g.role?' · '+esc(g.role):''}${g.company?' · '+esc(g.company):''} · دفعة <span class="num">${g.year}</span></div>
     </div>
     <button class="icon-btn" data-dclose aria-label="إغلاق السجل">${ic('x')}</button>
@@ -36,7 +49,7 @@ function renderDrawer(){
     </div>
     <div class="dsec"><h4>${ic('flag')} إجراءات</h4>
       <div class="dact-row">
-        <button class="btn ${st&&st.owner===me()?'primary':''}" data-dme="${g.id}">${st&&st.owner===me()?ic('check')+'مسؤول التواصل: أنا':ic('user')+'اِسند لي'}</button>
+        <button class="btn ${st&&st.owner===me()?'primary':''}" data-dme="${g.id}">${st&&st.owner===me()?ic('check')+'مسؤول التواصل: أنا':ic('user')+'أسنده لي'}</button>
         ${!g.doNotContact&&st&&(st.status==='wait'||st.status==='new')&&st.last?`<button class="btn" data-dclear="${g.id}">${ic('reset')}تصفير الحالة إلى «خريج جديد»</button>`:''}
         ${!g.deletedAt?`<button class="btn danger" data-dtrash="${g.id}">${ic('trash')}نقل للمهملات</button>`:''}
       </div>
@@ -79,7 +92,7 @@ function renderDrawer(){
     <div class="dsec"><h4>${ic('clock')} سجل الخريج</h4>
       ${(D.timeline||[]).filter(t2=>t2.gradId===g.id&&t2.text).slice().reverse().slice(0,drawerCap).map(t2=>`<div class="tl-entry">
         <span class="tic">${ic(TL_KIND[t2.kind]||'clock')}</span>
-        <div class="ttxt"><span>${esc(t2.text)}</span><small><time class="airabic">${fmtShort(t2.at)}</time>${t2.type==='member'&&t2.by?` · بواسطة ${esc(memberName(t2.by))}`:''}</small></div>
+        <div class="ttxt"><span>${esc(t2.text)}</span><small><time class="airabic">${fmtShort(t2.ts)}</time>${t2.actorId?` · بواسطة ${esc(memberName(t2.actorId))}`:''}</small></div>
       </div>`).join('')||'<span class="sub">ما فيه نشاط مسجل بعد.</span>'}
       ${(D.timeline||[]).filter(t2=>t2.gradId===g.id).length>drawerCap?`<button class="link" data-dcap="1">عرض المزيد (${(D.timeline||[]).filter(t2=>t2.gradId===g.id).length-drawerCap})</button>`:''}
     </div>
@@ -92,11 +105,15 @@ function drawerInvites(g){
   const sess=D.sessions.filter(s=>s.gradId===g.id&&!s.deletedAt);
   let h='';
   if(!ev&&!all.length&&!sess.length)return '<span class="sub">ما فيه فعالية حالياً ولا دعوات سابقة.</span>';
-  if(cur.length)h+=cur.slice().reverse().slice(0,8).map(i=>`<div class="ckrow">
-    <span class="pill" style="--c:var(--s-${i.status==='confirmed'?'yes':i.status==='cancelled'?'no':'sending'})">${i.status==='confirmed'?'أكد المشاركة':i.status==='cancelled'?'ألغيت':'قيد الإرسال'}</span>
-    <span class="sub">${i.kind==='reminder'?'تذكير':'دعوة أولى'} · ${esc(CHANNEL_AR[i.channel]||i.channel)} · ${fmtShort(i.createdAt)}${i.confirmedAt?' · أكد '+fmtShort(i.confirmedAt):''}</span>
-    ${i.status==='sending'?`<span class="dact-row"><button class="btn sm" data-ivok="${i.id}">${ic('check')}تأكيد</button><button class="btn sm" data-ivcx="${i.id}">${ic('x')}إلغاء</button></span>`:''}
-  </div>`).join('');
+  if(cur.length)h+=cur.slice().reverse().slice(0,8).map(i=>{
+    /* N-01: فقط حنا سجّلنا الإرسال — ما تثبت مشاركة الخريج */
+    const p=i.status==='confirmed'?{t:'تم التواصل',c:'wait'}:i.status==='cancelled'?{t:'أُلغيت',c:'no'}:{t:'قيد الإرسال',c:'sending'};
+    const when=i.status==='confirmed'&&i.confirmedAt?fmtShort(i.confirmedAt):'بدأ الإرسال '+fmtShort(i.createdAt);
+    return `<div class="ckrow">
+    <span class="pill" style="--c:var(--s-${p.c})">${p.t}</span>
+    <span class="sub">${i.kind==='reminder'?'تذكير':'دعوة أولى'} · ${CHANNEL_AR[i.channel]||i.channel} · ${esc(memberName(i.senderId)||'')} · ${when}</span>
+    ${i.status==='sending'?`<span class="dact-row"><button class="btn sm" data-ivok="${i.id}">${ic('check')}سجّل الإرسال</button><button class="btn sm" data-ivcx="${i.id}">${ic('x')}إلغاء</button></span>`:''}
+  </div>`}).join('');
   else h+=`<div class="sub">${ev?'ما فيه دعوات في هذه الفعالية بعد.':'ما فيه دعوات سابقة.'}</div>`;
   if(sess.length)h+=sess.map(s=>`<div class="ckrow"><span class="pill" style="--c:var(--s-${s.doneAt?'done':'booked'})">${s.doneAt?'تمت':'مجدولة'}</span>
     <span class="sub">${s.topic?esc(s.topic)+' · ':''}${fmtLong(s.date)} · ${fmtTime(toMin(s.start))}${s.notes?' · '+esc(s.notes):''}</span></div>`).join('');
@@ -105,11 +122,13 @@ function drawerInvites(g){
 
 /* ================= Modal ================= */
 function openModal(html){
+  lastModalOpener=document.activeElement instanceof HTMLElement?document.activeElement:lastModalOpener;
   modalHtml=html;
   const m=$('modal');
   m.innerHTML=html;
   m.hidden=false;m.classList.add('on');
   document.body.style.overflow='hidden';
+  const f=m.querySelector(FOCUSABLE);if(f)f.focus();
 }
 function closeModal(){
   modalHtml=null;
@@ -117,7 +136,23 @@ function closeModal(){
   m.classList.remove('on');
   document.body.style.overflow='';
   setTimeout(()=>{if(modalHtml===null)m.hidden=true},200);
+  /* R-30 */
+  if(lastModalOpener&&document.contains(lastModalOpener)){lastModalOpener.focus();lastModalOpener=null}
 }
+/* R-30: Tab trapping + Escape ordering (invite menu → modal/drawer) */
+document.addEventListener('keydown',e=>{
+  if(e.key==='Tab'){
+    const m=$('modal');
+    if(!m.hidden&&modalHtml){trapFocus(m,e);return}
+    const d=$('drawer');
+    if(d.classList.contains('on')){trapFocus(d,e);return}
+  }
+  if(e.key==='Escape'){
+    if(invMenu){closeInvite();return}/* sendMessage menu first */
+    if(modalHtml){closeModal();return}
+    if(drawerId){closeDrawer();return}
+  }
+});
 
 /* ================= Drawer actions ================= */
 function touchVerified(gid){const g=gradById(gid);if(g)g.lastVerified=riyadhToday()}
@@ -127,9 +162,9 @@ $('drawer').addEventListener('click',e=>{
   if(b.hasAttribute('data-dclose')){closeDrawer();return}
   const gid=drawerId;
   if(!gid)return;
-  if(b.dataset.dme){Repo.setOwner(gid,me());toast(`${esc(memberName(me()))} صار مسؤول التواصل مع ${esc(gradById(gid).name)}`);renderAll();return}
+  if(b.dataset.dme){Repo.setOwner(gid,me());toast(`${(memberName(me()))} صار مسؤول التواصل مع ${(gradById(gid).name)}`);renderAll();return}
   if(b.dataset.dclear){Repo.setState(gid,'new',{force:true,quiet:false});renderAll();return}
-  if(b.dataset.dtrash){const g=gradById(gid);closeDrawer();Repo.trashGrad(gid);toast(`نقلنا «${esc(g.name)}» للمهملات`);renderAll();return}
+  if(b.dataset.dtrash){const g=gradById(gid);closeDrawer();Repo.trashGrad(gid);toast(`نقلنا «${(g.name)}» للمهملات`);renderAll();return}
   if(b.dataset.dedit!==undefined){drawerEditMode=b.dataset.dedit==='1';renderDrawer();return}
   if(b.dataset.dsave){
     const v=id=>($(id)||{value:''}).value.trim();
@@ -141,7 +176,7 @@ $('drawer').addEventListener('click',e=>{
     if(ctType&&ctVal){
       const cl=cleanContact(ctType,ctVal);
       if(cl&&cl.ok){f.contacts=[...g.contacts.filter(c=>compactKey(c.type,c.value)!==compactKey(cl.type,cl.value)),{type:cl.type,value:cl.value}];touchVerified(gid)}
-      else toast('القيمة المدخلة مش صالحة كوسيلة تواصل — ما نضيفها, راجع الصيغة');
+      else toast('القيمة المدخلة مش صالحة كوسيلة تواصل — ما نضيفها، راجع الصيغة');
     }
     Repo.updateGrad(gid,f);
     toast('حفظنا التعديلات');drawerEditMode=false;renderAll();
@@ -166,14 +201,14 @@ $('drawer').addEventListener('click',e=>{
 /* ================= DNC flow ================= */
 function openDnc(gid){
   const g=gradById(gid);if(!g)return;
-  const reasons=['ما يبي يشارك','تجاهل بعد التذكيرين','طلب الإد والمشرفين','مؤقتاً فيها إشعار لاحق'];
+  const reasons=['ما يبي يشارك','تجاهل بعد التذكيرين','طلب الإدارة والمشرفين','تواصل لاحقاً — مؤقت'];
   openModal(`<h3>${ic('lock')} استثناء ${esc(g.name)} من التواصل</h3>
-    <p class="sub">الاستثناء بيتطبق بطلبه أو بقرار الإدارة. بنوقف أي إجراء جديد، وبنلغي أي إرسال «قيد الإرسال» لسه ما تأكد، وبنضيف وسائل تواصله لسجل المنع.</p>
+    <p class="sub">الاستثناء بيتطبق بطلبه أو بقرار الإدارة. بنوقف أي إجراء جديد، وبنلغي أي إرسال «قيد الإرسال» لسه ما سجّلنا الإرسال، وبنضيف وسائل تواصله لسجل المنع.</p>
     <div class="dgridded">${reasons.map(r=>`<button class="btn" data-dncr="${esc(r)}">${esc(r)}</button>`).join('')}</div>
     <label class="dfield" style="margin-top:10px">سبب آخر<input id="dnc-free"></label>
     <div class="mrow" style="justify-content:flex-end;margin-top:14px"><button class="btn" data-mclose="1">إلغاء</button></div>`);
   $('modal').querySelectorAll('[data-dncr]').forEach(btn=>{
-    btn.onclick=()=>{setFlag(gid,btn.dataset.dncr).then(()=>{closeModal();toast(`وقفنا التواصل مع ${esc(modifyName(gid))} — بيبان «لا تتواصل» في القوائم`);renderAll()})};
+    btn.onclick=()=>{setFlag(gid,btn.dataset.dncr).then(()=>{closeModal();toast(`وقفنا التواصل مع ${(modifyName(gid))} — بيبان «لا تتواصل» في القوائم`);renderAll()})};
   });
   const f=$('dnc-free');
   const kb=document.createElement('div');
@@ -202,7 +237,7 @@ function openMerge(gid,peerIds){
       ${items.map(o=>(o.contacts||[]).filter(c=>c.type===t).map(c=>`<label><input type="checkbox" name="m-ct-${o.id}-${compactKey(t,c.value)}" checked>${esc(t==='phone'?fmtPhone(c.value):t==='email'?c.value:fmtLinkedin(c.value))}</label>`).join('')).join('')}</div>`;
   }).join('');
   openModal(`<h3>${ic('users')} دمج سجلات</h3>
-    <p class="sub">بنبقي سجل واحد مع بيانات مختارة، والباقي يوطن كونهم مدموجين (تختفي من القوائم بس تنحفظ في السجل). اختار أي بيانات ووسائل تنجو للسجل المدموج.</p>
+    <p class="sub">نبقي سجل واحد نختار له البيانات والوسائل، والباقي يُحفظ كسجلات مدموجة (تختفي من القوائم وتبقى في السجل). اختر أي بيانات ووسائل تبيها في السجل المدموج.</p>
     <div class="merge-grid">${others.map(o=>`<div class="tcard"><b>${esc(o.name||PLACEHOLDER_NAME)}</b><span class="sub">${esc(o.major)} · دفعة ${o.year}</span></div>`).join('')}</div>
     <div style="margin-top:10px">${rows}${ctRows}</div>
     <div class="mrow" style="justify-content:flex-end;margin-top:14px">
@@ -226,7 +261,7 @@ function openMerge(gid,peerIds){
     const mergedNames=others.filter(o=>o!==dst).map(o=>o.name||PLACEHOLDER_NAME);
     Repo.merge(others.filter(o=>o!==dst).map(o=>o.id),dst.id,fill,extras);
     closeModal();
-    toast(`دمجنا ${mergedNames.length>1?mergedNames.length+' سجلات':'«'+esc(mergedNames[0]||'السجل')+'»'} في «${esc(dst.name||PLACEHOLDER_NAME)}» — التعديلات محفوظة`);
+    toast(`دمجنا ${mergedNames.length>1?mergedNames.length+' سجلات':'«'+(mergedNames[0]||'السجل')+'»'} في «${(dst.name||PLACEHOLDER_NAME)}» — التعديلات محفوظة`);
     if(drawerId){drawerId=dst.id;renderDrawer()}
     renderAll();
   };

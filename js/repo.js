@@ -5,7 +5,8 @@ function TLwrite(gradId,eventId,kind,text,refId,actorId){
 
 /* ================= Undo ================= */
 const Undo={stack:[]};
-function snapArr(arr){const j=JSON.stringify(arr);return{undo(){arr.length=0;JSON.parse(j).forEach(x=>arr.push(x))}}}
+/* key-based snapshots — resolve D[key] at undo time so reassigning D arrays stays safe */
+function snapArr(key){const j=JSON.stringify(D[key]);return{undo(){D[key]=JSON.parse(j)}}}
 function snapObj(o){const j=JSON.stringify(o);return{undo(){const nu=JSON.parse(j);Object.keys(o).forEach(k=>delete o[k]);Object.assign(o,nu)}}}
 function snapMap(map){const j=JSON.stringify(map);return{undo(){Object.keys(map).forEach(k=>delete map[k]);Object.assign(map,JSON.parse(j))}}}
 function pushUndo(label,fn){
@@ -24,6 +25,8 @@ const Repo={};
 /* F1: central state mutation (booked/done derived — set by scheduler/session flow only) */
 Repo.setState=function(gid,s,opts={}){
   const g=gradById(gid);if(!g)return;
+  /* R-10: a do-not-contact alumnus stays neutral — only 'new' is allowed back */
+  if(g.doNotContact&&s!=='new')return;
   const e=activeEvent();if(!e)return;
   if((s==='booked'||s==='done')&&!opts.force)return;
   const st=evStateOf(gid,e.id);if(!st)return;
@@ -46,7 +49,7 @@ Repo.setState=function(gid,s,opts={}){
     }
   }
   if(prev!==s)TLwrite(gid,e.id,'status_changed',`صارت الحالة «${STATUS[s].label}»`);
-  if(!opts.quiet)toast(`حالة ${esc(g.name)} صارت «${STATUS[s].label}»`);
+  if(!opts.quiet)toast(`حالة ${g.name} صارت «${STATUS[s].label}»`);
   commitUndo('حالة '+g.name,snaps);
   Store.save();
 };
@@ -58,11 +61,14 @@ Repo.invite=function(gid,kind,channel){
   if(!g||!e)return{ok:false,reason:'noevent'};
   if(g.doNotContact)return{ok:false,reason:'dnc'};
   if(kind==='initial'&&confirmedInitial(gid,e.id))return{ok:false,reason:'exists'};
-  if(kind==='initial'&&pendingFor(gid,e.id))return{ok:false,reason:'pending'};
+  /* defense in depth (R-16): ANY pending (sending) invitation for this alumnus+event blocks a new one */
+  if(pendingFor(gid,e.id))return{ok:false,reason:'pending'};
   if(kind==='reminder'){
-    const info=remindersInfo(gid,e.id);
+    /* R-11: reminders belong only to alumni waiting for a reply */
     const st=stateOf(gid);
-    if(info.count>=settings().reminderMax&&st&&st.status==='wait')return{ok:false,reason:'limit'};
+    if(!st||st.status!=='wait')return{ok:false,reason:'state'};
+    const info=remindersInfo(gid,e.id);
+    if(info.count>=settings().reminderMax)return{ok:false,reason:'limit'};
     if(info.lastAt){
       const days=diffDays(today(),dayOfISO(info.lastAt));
       if(days<settings().reminderCooldownDays)return{ok:false,reason:'cooldown',days};
@@ -71,7 +77,8 @@ Repo.invite=function(gid,kind,channel){
   const st=stateOf(gid);
   const inv={id:uid('i'),gradId:gid,eventId:e.id,kind,channel,senderId:me(),createdAt:nowISO(),confirmedAt:null,status:'sending',
     prevState:kind==='initial'&&st?st.status:null};
-  const snaps=[snapArr(D.invitations)];
+  const snaps=[snapArr('invitations')];
+  if(kind==='initial'&&st)snaps.push(snapObj(st));/* R-04: the status move to 'sending' must undo cleanly */
   D.invitations.push(inv);
   if(kind==='initial'&&st)st.status='sending';
   TLwrite(gid,e.id,kind==='reminder'?'reminder_sent':'invitation_sending',
@@ -93,9 +100,9 @@ Repo.inviteConfirm=function(invid){
     if(!st.owner){st.owner=me();TLwrite(inv.gradId,inv.eventId,'owner_assigned',`أسندنا (${memberName(me())}) مسؤول التواصل تلقائياً`)}
   }
   TLwrite(inv.gradId,inv.eventId,'invitation_sent',
-    `${memberName(inv.senderId)} أكدت إرسال ${inv.kind==='reminder'?'التذكير':'الدعوة الأولية'} على ${CHANNEL_AR[inv.channel]}`,inv.id,inv.senderId);
-  if(g)toast(`تم إرسال الدعوة لـ ${esc(g.name)} عبر ${CHANNEL_AR[inv.channel]}`);
-  commitUndo('تأكيد الإرسال',snaps);
+    `${memberName(inv.senderId)} سجّلت إرسال ${inv.kind==='reminder'?'التذكير':'الدعوة الأولية'} على ${CHANNEL_AR[inv.channel]} — البقاء بانتظار رده`,inv.id,inv.senderId);
+  if(g)toast(`سجلنا إرسال الدعوة لـ ${g.name} عبر ${CHANNEL_AR[inv.channel]}`);
+  commitUndo('تسجيل الإرسال',snaps);
   Store.save();
 };
 Repo.inviteCancel=function(invid,auto){
@@ -107,7 +114,7 @@ Repo.inviteCancel=function(invid,auto){
   inv.status='cancelled';
   if(inv.kind==='initial'&&st)st.status=inv.prevState||'new';
   TLwrite(inv.gradId,inv.eventId,'invitation_cancelled',
-    auto?'تم إلغاء التأكيد تلقائياً (ما وصل تأكيد خلال ٢٤ ساعة)':'أُلغي إرسال الدعوة',inv.id,inv.senderId);
+    auto?'تم الإلغاء تلقائياً — ما سجّلنا الإرسال خلال ٢٤ ساعة':'أُلغي إرسال الدعوة',inv.id,inv.senderId);
   commitUndo('إلغاء الإرسال',snaps);
   Store.save();
 };
@@ -120,7 +127,7 @@ function sweepPending(){
     const st=D.states[i.gradId+'|'+i.eventId];
     if(st&&i.kind==='initial'&&st.status==='sending')st.status=i.prevState||'new';
     D.timeline.push({id:uid('t'),gradId:i.gradId,eventId:i.eventId,ts:nowISO(),kind:'auto_reverted',actorId:null,
-      text:'تم إلغاء التأكيد تلقائياً (ما وصل تأكيد خلال ٢٤ ساعة)',refId:i.id});
+      text:'تم الإلغاء تلقائياً — ما سجّلنا الإرسال خلال ٢٤ ساعة',refId:i.id});
     changed=true;
   });
   return changed;
@@ -130,7 +137,7 @@ function sweepPending(){
 Repo.openEvent=function(name){
   if(activeEvent())return null;
   const ev={id:uid('e'),name,startedAt:riyadhToday(),closedAt:null,status:'open'};
-  const snaps=[snapArr(D.events)];
+  const snaps=[snapArr('events')];
   D.events.push(ev);
   liveGrads().forEach(g=>{if(!g.doNotContact)evStateOf(g.id,ev.id)});
   TLwrite(null,ev.id,'migration',`بدأت فعالية «${name}» — الحالات الجديدة انفصلت عن الفعاليات السابقة`);
@@ -151,8 +158,10 @@ Repo.closeEvent=function(){
 Repo.addSession=function(f){
   const g=gradById(f.gradId),e=activeEvent();
   if(!g||!e)return null;
+  /* R-10: do-not-contact alumni are never scheduled */
+  if(g.doNotContact)return null;
   const s={id:uid('s'),gradId:g.id,eventId:e.id,date:f.date,start:f.start,dur:f.dur,topic:f.topic||'',slidesUrl:'',recordingUrl:'',notes:'',doneAt:null,deletedAt:null};
-  const snaps=[snapArr(D.sessions)];
+  const snaps=[snapArr('sessions')];
   D.sessions.push(s);
   const st=evStateOf(g.id,e.id);
   if(st){
@@ -194,7 +203,7 @@ Repo.purgeSessionSilent=function(sid){
 };
 Repo.purgeSession=function(sid){
   const s=sessionById(sid);if(!s)return;
-  const snaps=[snapArr(D.sessions),snapArr(D.timeline)];
+  const snaps=[snapArr('sessions'),snapArr('timeline')];
   Repo.purgeSessionSilent(sid);
   commitUndo('حذف نهائي لجلسة',snaps);
   Store.save();
@@ -227,7 +236,7 @@ Repo.addGrad=function(f,source){
   const g={id:uid('g'),name:f.name||PLACEHOLDER_NAME,year:+f.year||2024,major:f.major||'',company:f.company||'',
     role:f.role||'',contacts:f.contacts||[],doNotContact:false,createdFrom:source||'manual',createdAt:nowISO(),deletedAt:null,mergedInto:null};
   const e=activeEvent();
-  const snaps=[snapArr(D.grads)];
+  const snaps=[snapArr('grads')];
   D.grads.push(g);
   if(e&&!g.doNotContact)evStateOf(g.id,e.id);
   TLwrite(g.id,e?e.id:null,'imported',`أُضيف الخريج ${g.name} (${source==='manual'?'إضافة يدوية':'إضافة جديدة'})`);
@@ -280,7 +289,8 @@ Repo.purgeGradSilent=function(gid){
 };
 Repo.purgeGrad=function(gid){
   const g=gradById(gid);if(!g)return;
-  const snaps=[snapArr(D.grads),snapArr(D.timeline),snapMap(D.states)];
+  /* full snapshot so the undo restores every dependent record */
+  const snaps=[snapArr('grads'),snapArr('timeline'),snapMap(D.states),snapArr('sessions'),snapArr('invitations'),snapArr('suppressions')];
   const name=g.name;
   Repo.purgeGradSilent(gid);
   commitUndo('حذف نهائي',snaps);
@@ -322,7 +332,7 @@ async function hashKey(type,value){
 async function setFlag(gid,reason,elapsedToast){
   const g=gradById(gid);if(!g)return;
   const e=activeEvent();
-  const snaps=[snapObj(g),snapArr(D.suppressions)];
+  const snaps=[snapObj(g),snapArr('suppressions')];
   g.doNotContact=true;g.dncReason=reason;g.dncBy=me();g.dncAt=nowISO();
   const keys=[];
   for(const c of (g.contacts||[]))keys.push({type:c.type,hash:await hashKey(c.type,c.value)});
@@ -334,7 +344,7 @@ async function setFlag(gid,reason,elapsedToast){
 }
 async function toggleFlagBack(gid,resume){
   const g=gradById(gid);if(!g)return;
-  const snaps=[snapObj(g),snapArr(D.suppressions)];
+  const snaps=[snapObj(g),snapArr('suppressions')];
   g.doNotContact=!resume;
   if(resume){D.suppressions=D.suppressions.filter(s=>s.gradId!==gid);g.dncReason=null;g.dncBy=null;g.dncAt=null}
   TLwrite(gid,null,'do_not_contact',resume?'أعدنا فتح باب التواصل بناءً على اختيار العضو':'لا تتواصل (تكرار)');
@@ -374,7 +384,7 @@ Repo.merge=function(srcIds,dstId,fillFields,extraContacts){
   const dkeys=new Set((dst.contacts||[]).map(c=>compactKey(c.type,c.value)));
   const ext=(extraContacts||[]).filter(c=>c&&c.type&&c.value&&!dkeys.has(compactKey(c.type,c.value)));
   if(!list.length&&!fills.length&&!ext.length)return;
-  const snaps=[...list.map(snapObj),snapObj(dst),snapArr(D.sessions)];
+  const snaps=[...list.map(snapObj),snapObj(dst),snapArr('sessions')];
   fills.forEach(f=>{
     const k=typeof f==='string'?f:f.k;
     const from=(f&&f.from)?gradById(f.from):list[0];
@@ -400,6 +410,8 @@ Repo.batchUndo=function(batchId){
     D.grads=D.grads.filter(x=>x.id!==gid);
     D.timeline=D.timeline.filter(t=>t.gradId!==gid);
     Object.keys(D.states).forEach(k=>{if(k.split('|')[0]===gid)delete D.states[k]});
+    D.sessions=D.sessions.filter(s=>s.gradId!==gid);
+    D.invitations=D.invitations.filter(i=>i.gradId!==gid);
   });
   if(typeof b.snapshot.tlLen==='number')D.timeline=D.timeline.slice(0,b.snapshot.tlLen);
   Object.entries(b.snapshot.prev).forEach(([gid,prev])=>{
@@ -407,6 +419,8 @@ Repo.batchUndo=function(batchId){
     if(prev&&g){Object.keys(g).forEach(k=>delete g[k]);Object.assign(g,prev)}
   });
   b.snapshot=null;
+  /* R-34: batchUndo reassigns arrays directly — old undo snapshots no longer apply */
+  Undo.stack.length=0;
   saveNow();
   return true;
 };
