@@ -1,11 +1,9 @@
 /* ================= Import wizard ================= */
 const WIZ_IDS={
-  grads:{scope:'grads',text:'wiz-text',review:'wiz-review',note:'wiz-note',preview:'wiz-preview',file:'wiz-file-file'},
-  settings:{scope:'settings',text:'wiz-text-s',review:'wiz-review-s',note:'wiz-note-s',preview:'wiz-preview-s',file:'wiz-file-s'}
+  grads:{scope:'grads',text:'wiz-text',review:'wiz-review',note:'wiz-note',preview:'wiz-preview',file:'wiz-file-file'}
 };
 function initWizard(scope){
   const ids=WIZ_IDS[scope];if(!ids)return;
-  if(scope==='settings')return initWizardSettings();
   const text=$(ids.text),review=$(ids.review),note=$(ids.note),prev=$(ids.preview),file=$(ids.file);
   if(!text||!review)return;
   prev&&prev.addEventListener('input',e=>{if(e.target.matches('[data-wfld]'))wizCellInput(e.target)});
@@ -35,26 +33,16 @@ async function wizReview(ids){
   wizRows=await Importer.diffCandidates(cands);
   renderWizardPreview(ids.scope);
 }
-let wizSInit=false;
-function initWizardSettings(){
-  if(wizSInit)return;wizSInit=true;
-  const card=$('settings-card');if(!card)return;
-  card.addEventListener('click',e=>{if(e.target.id===WIZ_IDS.settings.review)wizReview(WIZ_IDS.settings)});
-  card.addEventListener('input',e=>{
-    if(e.target.matches('[data-wfld]')){wizCellInput(e.target);return}
-    if(e.target.id===WIZ_IDS.settings.text){const r=$(WIZ_IDS.settings.review);if(r)r.disabled=!e.target.value.trim()}
-  });
-  card.addEventListener('change',e=>{if(e.target.id===WIZ_IDS.settings.file)wizLoadFile(e.target,WIZ_IDS.settings)});
-}
 function cellToCandidate(cells,mapObj){
-  const c={name:'',phones:[],emails:[],linkedins:[],year:'',major:'',company:'',role:''};
-  if(mapObj&&Object.keys(mapObj).length){
+  const c={name:'',phones:[],emails:[],linkedins:[],year:'',major:'',company:'',role:'',notes:[]};
+  const seen=new Set();
+  if(mapObj&&Object.keys(mapObj).length&&cells.length>1){
     cells.forEach((v,i)=>{
       const f=mapObj[i];if(!f||!String(v).trim())return;
       const r=Importer.cleanValue(f,v);
-      if(f==='phone'){const p=phoneCanonical(v);if(p)c.phones.push(p);return}
-      if(f==='email'){const em=emailCanonical(v);if(em&&em.ok)c.emails.push(em.value);return}
-      if(f==='linkedin'){const l=linkedinCanonical(v);if(l)c.linkedins.push(l);return}
+      if(f==='phone'){const p=phoneCanonical(v);if(!p&&r.note)c.notes.push(r.note);if(p)seen.add('phone|'+p);if(p)c.phones.push(p);return}
+      if(f==='email'){const em=cleanContact('email',v);if(em&&em.ok)c.emails.push(em.value);if(r&&r.suggest&&!c.suggest)c.suggest=r.suggest;if((!em||!em.ok)&&r.note)c.notes.push(r.note);return}
+      if(f==='linkedin'){const l=linkedinCanonical(v);if(!l&&r.note)c.notes.push(r.note);if(l)seen.add('linkedin|'+l);if(l)c.linkedins.push(l);return}
       if(f==='name'){c.name=c.name?c.name+' '+r.value:r.value;return}
       c[f]=String(r.value||'').trim();
     });
@@ -110,7 +98,7 @@ function wizCellInput(target){
   else if(f==='year')r.c.year=v.replace(/[^\d]/g,'').slice(0,4);
   else if(f==='major'||f==='company')r.c[f]=v;
   else if(f==='phones')r.c.phones=v?v.split(/[,،;؛]+/).map(x=>phoneCanonical(x.trim())).filter(Boolean):[];
-  else if(f==='emails')r.c.emails=v?v.split(/[,،;؛]+/).map(x=>emailCanonical(x.trim())).filter(e=>e&&e.ok).map(e=>e.value):[];
+  else if(f==='emails')r.c.emails=v?v.split(/[,،;؛]+/).map(x=>cleanContact('email',x)).filter(e=>e&&e.ok).map(e=>e.value):[];
   else if(f==='linkedins')r.c.linkedins=v?v.split(/[,،;\s؛]+/).map(x=>linkedinCanonical(x.trim())).filter(Boolean):[];
 }
 async function applyWizard(scope){
@@ -122,7 +110,7 @@ async function applyWizard(scope){
   const c=batch.counts;
   const parts=[c.added&&`أضفنا ${c.added}`,c.updated&&`حدّثنا ${c.updated}`,c.merge&&`دمجنا ${c.merge}`,c.unchanged&&`${c.unchanged} بدون تغيير`,c.blocked&&`${c.blocked} محجوب`].filter(Boolean).join('، ');
   toast('انتهى الاستيراد: '+parts+(bad?` — تجاهلنا ${bad} ${bad===1?'سجلاً غير صالح':'سجلات غير صالحة'}`:''),{label:'استرجاع الدفعة',fn:()=>Repo.batchUndo(batch.id)});
-  switchTab(scope==='settings'?'settings':'grads');
+  switchTab('grads');
   clearFilters();renderAll();
 }
 let wizRows=null;

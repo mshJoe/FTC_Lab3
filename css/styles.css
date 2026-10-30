@@ -419,19 +419,36 @@ tr.wait-done td{opacity:1}
 .testbox .lbl b{color:var(--fg-2);font-weight:600}
 .testbox .inp{width:auto;padding:7px 11px}
 
-/* ---------- Bottom nav ---------- */
+/* ---------- Top tab bar (functional) + bottom portal nav (identity) ---------- */
+/* R-06: sticky at the very top with a blurred translucent background */
+.tabbar{position:sticky;z-index:45;top:env(safe-area-inset-top,0px);display:flex;gap:6px;margin:-8px 0 16px;padding:6px;border-radius:16px;overflow-x:auto;
+  background:rgba(20,13,36,.72);border:1px solid var(--line-2);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);scrollbar-width:none}
+.tabbar::-webkit-scrollbar{display:none}
+.tabbar button{display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:12px;border:0;background:transparent;color:var(--fg-2);font-size:14.5px;position:relative;white-space:nowrap}
+.tabbar button:hover{color:var(--fg)}
+.tabbar button:focus-visible{outline:2px solid var(--accent-2);outline-offset:2px}
+.tabbar button.on{background:rgba(139,92,246,.22);color:var(--accent-ink)}
+.tabbar .ndot{position:absolute;top:6px;left:8px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--s-wait);color:#231803;font-size:10px;font-weight:700;line-height:16px;text-align:center;box-shadow:0 0 0 2px rgba(20,13,36,1)}
 .nav{position:fixed;z-index:40;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));
   display:flex;gap:4px;padding:6px;border-radius:18px;background:rgba(20,13,36,.88);border:1px solid var(--line-2);backdrop-filter:blur(14px);box-shadow:0 14px 40px -10px rgba(0,0,0,.7);max-width:calc(100% - 20px)}
 .nav button{display:flex;align-items:center;gap:7px;padding:10px 16px;border-radius:13px;border:0;background:transparent;color:var(--fg-2);font-size:15px;position:relative;white-space:nowrap}
 .nav button:hover{color:var(--fg)}
 .nav button.on{background:rgba(139,92,246,.2);color:var(--accent-ink)}
 .nav button.on::after{content:"";position:absolute;bottom:-1px;left:50%;transform:translateX(-50%);width:22px;height:3px;border-radius:3px;background:var(--accent-2)}
-.nav .ndot{position:absolute;top:7px;left:10px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--s-wait);color:#231803;font-size:10px;font-weight:700;line-height:16px;text-align:center;box-shadow:0 0 0 2px rgba(20,13,36,1)}
+.nav .new-dot{position:absolute;top:6px;left:8px;width:7px;height:7px;border-radius:50%;background:var(--s-yes);box-shadow:0 0 0 2px rgba(20,13,36,1)}
 @media (max-width:700px){
-  .nav{gap:0;padding:5px}
+  .nav{gap:0;padding:5px;max-width:none;width:calc(100% - 12px);justify-content:space-between}
   .nav button{flex-direction:column;gap:2px;padding:7px 9px;font-size:11px;min-width:64px}
   .nav button svg.i{width:20px;height:20px}
   .title-wrap h1{font-size:26px}
+  .tabbar{font-size:13px;top:env(safe-area-inset-top,0px)}
+}
+/* R-06/R-29 at the same breakpoint the app switches to cards (759px) */
+@media (max-width:759px){
+  .tabbar{position:sticky;top:env(safe-area-inset-top,0px);flex-wrap:nowrap}
+  .tabbar button{padding:10px 14px}
+  .icon-btn{width:44px;height:44px}
+  .copy{width:44px;height:44px}
 }
 
 /* ---------- Toast ---------- */
@@ -440,6 +457,10 @@ tr.wait-done td{opacity:1}
 .toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
 .toast svg.i{color:var(--s-yes)}
 /* --- additions: tpl-head / row-warn --- */
+.demo-note-tag{display:inline-flex;align-items:center;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  padding:2px 8px;border-radius:999px;font-size:10.5px;color:var(--fg-3);background:rgba(255,255,255,.05);border:1px dashed var(--line-2);vertical-align:middle}
+.tpl-live{margin-top:10px}
+#tpl-warn{color:var(--s-wait)}
 .tpl-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1;justify-content:space-between}
 tr.row-warn>td{background:rgba(247,191,74,.10)}
 tr.row-warn:hover>td{background:rgba(247,191,74,.16)}

@@ -12,11 +12,19 @@ let tplEdit=null,wizState=null;
 
 /* ================= Toast ================= */
 let toastT;
+/* R-02: msg/labels are plain text — inserted via textContent so raw names can never become markup */
 function toast(msg,action){
   const t=$('toast');
-  t.innerHTML=`${ic('check')}<span>${msg}</span>${action?`<button class="btn sm" id="toast-act">${esc(action.label)}</button>`:''}`;
+  t.textContent='';
+  const i=document.createElement('span');i.innerHTML=ic('check');i.style.display='contents';
+  const s=document.createElement('span');s.textContent=String(msg);
+  t.appendChild(i);t.appendChild(s);
+  if(action){
+    const b=document.createElement('button');b.className='btn sm';b.id='toast-act';b.textContent=action.label;
+    b.onclick=()=>{action.fn();t.classList.remove('show')};
+    t.appendChild(b);
+  }
   t.classList.add('show');
-  if(action)$('toast-act').onclick=()=>{action.fn();t.classList.remove('show')};
   clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),action?6500:3600);
 }
 function copyText(text,okMsg,action){
@@ -50,7 +58,7 @@ function renderMemberPicker(){
       if(e.target.closest('#mp-btn'))return;
       const b=e.target.closest('[data-mp]');if(!b)return;
       U.activeMemberId=b.dataset.mp;saveUI();
-      toast(`قلنا إنك ${esc(me())} — كل إسناد ورسالة بصفتك عليه`);
+      toast(`صرت تعمل بصفة ${(me())}. أي إسناد أو رسالة الحين باسمه.`);
       renderAll();
     });
   }
@@ -59,7 +67,7 @@ function renderMemberPicker(){
 /* ================= Header stats ================= */
 function statusCounts(){
   const c={};ORDER.forEach(s=>c[s]=0);
-  liveGrads().forEach(g=>{const st=stateOf(g.id);c[st?st.status:'new']++});
+  liveGrads().forEach(g=>{const st=stateOf(g.id);c[st&&ORDER.includes(st.status)?st.status:'new']++});
   return c;
 }
 function renderStats(){
@@ -68,10 +76,13 @@ function renderStats(){
     <span class="stat-n">${c[s]}</span><span class="stat-l"><i class="dot"></i>${STATUS[s].label}</span></button>`).join('');
   const sc=$('sim-chip');
   if(U.simDate&&U.simDate!==riyadhToday()){sc.hidden=false;sc.textContent='تاريخ محاكى: '+new Intl.DateTimeFormat(LOC,{weekday:'long',day:'numeric',month:'long'}).format(parseISO(U.simDate))}else sc.hidden=true;
-  $('demo-chip').hidden=!IS_TEST;
+  $('demo-chip').hidden=!(DEMO_MODE&&D&&D.demo);
   const td=$('trash-dot');
   const trN=D.grads.filter(g=>g.deletedAt).length+D.sessions.filter(s=>s.deletedAt).length;
   td.hidden=!trN;td.textContent=trN;
+  /* R-36 */
+  td.setAttribute('role','status');
+  td.setAttribute('aria-label','المهملات: '+trN);
 }
 
 /* ================= Event bar ================= */
@@ -81,9 +92,11 @@ function monthsPhrase(days){
   return `قبل ${m===1?'شهر':m===2?'شهرين':m+' أشهر'}`;
 }
 function prevEventHint(g){
-  const e=activeEvent();
-  const inv=lastInitialAnyEvent(g.id);
-  if(!inv||!e)return null;
+  const e=activeEvent();if(!e)return null;
+  /* T8: latest confirmed initial invite outside the CURRENT event only */
+  const inv=D.invitations.filter(i=>i.gradId===g.id&&i.kind==='initial'&&i.status==='confirmed'&&i.eventId!==e.id)
+    .sort((a,b)=>String(b.confirmedAt||b.createdAt).localeCompare(String(a.confirmedAt||a.createdAt)))[0];
+  if(!inv)return null;
   const d=diffDays(riyadhToday(),dayOfISO(inv.confirmedAt||inv.createdAt));
   if(d<=0)return null;
   return `دُعي في فعالية سابقة ${monthsPhrase(d)}`;
@@ -132,7 +145,7 @@ $('event').addEventListener('click',e=>{
   }else if(id==='ev-start-yes'){
     const name=($('ev-name').value||'').trim()||'فعالية جديدة';
     confirmMode=null;Repo.openEvent(name);
-    toast(`بدأت فعالية «${esc(name)}» — كل الخريجين رجعوا «لم يُتواصل بعد» لهذه الفعالية`);
+    toast(`بدأت فعالية «${(name)}» — ستبدأ جميع الحالات من «لم يُتواصل بعد» لهذه الفعالية`);
     renderAll();return;
   }
   renderEvent();

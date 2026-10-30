@@ -1,17 +1,23 @@
 # بوابة FTC — الخريجين (ftc-graduates)
 
-Multi-file split of `ftc-graduates-v3.html`. Behavior-identical: same markup, same CSS,
-same JS — just organized. The original single-file prototype is untouched.
+Multi-file implementation of the FTC graduates gateway (split from `ftc-graduates-v3.html`,
+then hardened per T1–T11 — see `CHANGES.md`). Plain scripts, no build step, no server.
 
 ## Run
 
-Open `index.html` directly in the browser (double-click works — plain scripts, no build
-step, no server needed). Feature flags:
+Open `index.html` directly in the browser (double-click works). Flags:
 
-- `?test=1` — test panel (date simulation)
-- `?dev=1` — dev harness (`window.FTC`, `FTC.resetSeed()`, `FTC.runDevTests()`)
+- `?test=1` — test panel (date simulation + demo seed scenarios + reset)
+- `?test=0` — hide the test panel
+- `?dev=1` — dev harness (`window.FTC`) + «شغّل الفحوص» button; add `&autorun=1` to run on load
+- `?seed=empty|perf` — pick the demo seed scenario once (test mode only)
 
-Storage keys unchanged: `ftc-grads-proto-v2` compat + current store envelope (`KEY`/`VERKEY` in `store.js`).
+Demo data: `DEMO_MODE` flag in `js/constants.js` (true = demo build with seeded data and
+test panel; flip to false for the club-site embed).
+
+Storage keys unchanged: `ftc-grads-proto-v2` compat + current store envelope
+`ftc-grads-v2`/`ftc-grads-v2-ui`/`ftc-grads-v2-ver` (`store.js`). The envelope carries
+`seedVersion` so pure-demo datasets reseed when the seed logic bumps.
 
 ## Structure
 
@@ -34,7 +40,7 @@ ftc-graduates/
     ├── ui-grads.js     toolbar & filters, graduates table/cards, invite send flow
     ├── scheduler.js    scheduler (D1), 14-day strip, reminders, sessions table, archive
     ├── drawer.js       alumnus drawer, modal system, drawer actions, DNC flow, merge dialog
-    ├── pages.js        trash page, settings page, template editor
+    ├── pages.js        trash page, settings page (backup/restore, CSV, templates editor)
     ├── wizard.js       import wizard (review preview, commits, batch undo)
     └── main.js         quick add, thanks/booking menus, row delegation, router,
                         renderAll, test panel, waves canvas, boot, window export + dev harness
@@ -50,8 +56,22 @@ shared state (`D`, `U`, `F`, `sel`, …) lives in the browser global scope exact
 so `let/const` declarations must stay unique across files (no new top-level names without
 checking `js/` siblings).
 
-## Known issues
+## Navigation
 
-Fix plan: `/home/youssef/Desktop/ftc-graduates-v3-fix-plan.md` (P0–P3, tracked separately).
-Line references in that plan map to the original single file; equivalent sections are
-listed above.
+- Sticky top tab bar `#tabbar` — functional routes (الخريجين/الجلسات/المهملات/الإعدادات).
+- Fixed bottom nav `#nav` — visual identity strip mirroring the FTC portal
+  (الخريجين، اللابات، المهام، المجتمع، الصدارة، حسابي). Inert; clicking explains itself.
+
+## Verification
+
+- `node --check` every module; Node vm seed harness on `constants.js` (see CHANGES.md).
+- Headless Chrome smoke + full dev harness:
+  `google-chrome --headless=new --user-data-dir=/tmp/x --virtual-time-budget=8000 --dump-dom
+   "file://$PWD/index.html?dev=1&test=1&autorun=1"` — expect «فحوص آلية: 91 ناجح، 0 فاشل»
+  and no console errors.
+
+## Docs
+
+- `CHANGES.md` — the T1–T11 pass, string-change table, verification log.
+- `DEMO-SCRIPT.md` — Arabic walkthrough for presenting the demo.
+

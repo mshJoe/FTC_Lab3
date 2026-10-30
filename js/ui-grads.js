@@ -71,9 +71,10 @@ function contactChip(c){
   const shown=c.type==='phone'?fmtPhone(c.value):c.type==='linkedin'?'in/'+liHandle(c.value):c.value;
   const label=c.type==='email'?'نسخ الإيميل':c.type==='phone'?'نسخ الرقم':'نسخ حساب LinkedIn';
   const copyVal=c.type==='linkedin'?`https://www.linkedin.com/in/${liHandle(c.value)}/`:c.value;
-  const lk=c.type==='linkedin'&&isValid;
+  const hrefVal=safeUrl(copyVal);/* R-03: only http(s) becomes an href */
+  const lk=c.type==='linkedin'&&isValid&&hrefVal;
   return `<span class="ct ct-${c.type}" ${isValid?'':'title="وسيلة تواصل مش صالحة — وصلتها «بيانات ناقصة»"'}>
-    ${ic(icon)}${lk?`<a class="ct-v" dir="ltr" href="${esc(copyVal)}" target="_blank" rel="noopener" title="فتح حساب LinkedIn">${esc(shown)}</a>`:`<span class="ct-v" dir="ltr">${esc(shown)}</span>`}
+    ${ic(icon)}${lk?`<a class="ct-v" dir="ltr" href="${esc(hrefVal)}" target="_blank" rel="noopener noreferrer" title="فتح حساب LinkedIn">${esc(shown)}</a>`:`<span class="ct-v" dir="ltr">${esc(shown)}</span>`}
     <button class="copy" data-copy="${esc(copyVal)}" aria-label="${label}" title="${label}">${ic('copy')}</button></span>`;
 }
 function sortTh(key,label){
@@ -121,11 +122,15 @@ function inviteCellHTML(g){
     if(st.status==='done')return `<button class="invite" data-thanks="${g.id}" title="نسخ رسالة الشكر وفتح القناة">${ic('bell')}إرسال الشكر</button>`;
     return `<span class="sub">اعتذر من المشاركة</span>`;
   }
-  if(info.count>=settings().reminderMax&&st&&st.status==='wait'){
-    return `<button class="invite ghost" disabled title="وصلت الحد (${settings().reminderMax} تذكيرات). الحين الخطوة يدوية: تابع الرد أو سجّل النتيجة.">${ic('check')}وصلت الحد</button>`;
+  if(st&&st.status!=='wait'){
+    /* R-11: reminders belong only to «بانتظار الرد» */
+    return `<button class="invite ghost" disabled title="التذكير متاح فقط لمن ينتظر الرد">${ic('clock')}التذكير متاح لمن ينتظر الرد</button>`;
+  }
+  if(info.count>=settings().reminderMax){
+    return `<button class="invite ghost" disabled title="وصلنا الحد (${settings().reminderMax} تذكيرات). الحين الخطوة يدوية: تابع الرد أو سجّل النتيجة.">${ic('check')}وصلنا الحد</button>`;
   }
   if(info.lastAt&&diffDays(today(),dayOfISO(info.lastAt))<settings().reminderCooldownDays){
-    return `<button class="invite ghost" disabled title="الفترة بين التذكيرات ${settings().reminderCooldownDays} أيام — آخر رسالة ${relFuture(-diffDays(today(),dayOfISO(info.lastAt)))}">${ic('clock')}برود التذكير</button>`;
+    return `<button class="invite ghost" disabled title="فترة التهدئة: ${settings().reminderCooldownDays} أيام بين التذكيرات — آخر رسالة ${relFuture(-diffDays(today(),dayOfISO(info.lastAt)))}">${ic('clock')}فترة التهدئة</button>`;
   }
   return `<button class="invite ghost" data-invite="${g.id}" title="تذكير · ${tip}">${ic('send')}إرسال تذكير</button>`;
 }
@@ -143,7 +148,8 @@ function nameCell(g,di,q){
     :''}${di.sameContact(g)?`<button class="samect" data-samk="${g.id}" title="يوجد خريج بنفس وسيلة التواصل — افتح الدمج">نفس وسيلة التواصل</button>`
     :''}${incomplete(g)?`<span class="miss-tag" title="ما فيه وسيلة تواصل صالحة">${ic('info')}بيانات ناقصة</span>`
     :''}${(()=>{const pe=prevEventHint(g);return pe?`<span class="twin" title="تنبيه فقط — ما يمنع الإرسال">${ic('info')}${esc(pe)}</span>`:''})()
-    }${sess?`<span class="pill" style="--c:var(--accent-2)" title="جلسة ${fmtLong(sess.date)}">${ic('cal')}${relFuture(diffDays(sess.date,today()))}</span>`:''}`;
+    }${DEMO_MODE&&g.demoNote?`<span class="demo-note-tag" title="ملاحظة من بيانات العرض التجريبي">${esc(g.demoNote)}</span>`:''}
+    ${sess?`<span class="pill" style="--c:var(--accent-2)" title="جلسة ${fmtLong(sess.date)}">${ic('cal')}${relFuture(diffDays(sess.date,today()))}</span>`:''}`;
 }
 function renderTable(rows,di){
   const host=$('tbl-host');
@@ -186,7 +192,7 @@ function renderCards(rows,di){
   const host=$('cards-host');
   if(!rows.length){host.innerHTML='';return}
   const allSel=rows.every(g=>sel.has(g.id));
-  host.innerHTML=`<span class="fchip selall-chip ${allSel?'on':''}" id="sel-all-m" role="button" tabindex="0"><i class="dot" style="background:var(--accent-2)"></i>تحديد كل الظاهرين (${rows.length})</span>`+
+  host.innerHTML=`<button type="button" class="fchip selall-chip ${allSel?'on':''}" id="sel-all-m" aria-pressed="${allSel}"><i class="dot" style="background:var(--accent-2)"></i>تحديد كل الظاهرين (${rows.length})</button>`+
     rows.map(g=>{
       const st=stateOf(g.id);
       const s=st?st.status:'new';
@@ -201,7 +207,7 @@ function renderCards(rows,di){
         <div class="status-bar-cards"><span class="pill" style="--c:var(--s-${s})">${STATUS[s].label}</span><span class="sub">${lastCell(g)}</span></div>
         <div class="gc-foot">${inviteCellHTML(g)}
           <select class="mini-sel" data-owner="${g.id}" aria-label="مسؤول التواصل">
-            <option value="">اِسناد</option>${D.members.map(m=>`<option value="${esc(m.id)}"${st&&st.owner===m.id?' selected':''}>${esc(m.name)}</option>`).join('')}</select>
+            <option value="">إسناد</option>${D.members.map(m=>`<option value="${esc(m.id)}"${st&&st.owner===m.id?' selected':''}>${esc(m.name)}</option>`).join('')}</select>
           <button class="icon-btn" data-drw="${g.id}" aria-label="سجل ${esc(g.name)}" title="سجل الخريج">${ic('eye')}</button>
         </div>
       </div>`}).join('');
@@ -216,7 +222,7 @@ function renderBulk(){
     <button class="btn primary sm" id="bulk-apply">تطبيق</button>
     <select class="sel" id="bulk-owner"><option value="">إسناد عضو…</option>${D.members.map(m=>`<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('')}</select>
     <button class="btn primary sm" id="bulk-ass">إسناد</button>
-    <button class="btn sm" id="bulk-me">إسناد لي</button>
+    <button class="btn sm" id="bulk-me">أسنده لي</button>
     <button class="link" id="bulk-clear">إلغاء التحديد</button>`;
 }
 
@@ -224,30 +230,39 @@ function renderBulk(){
 let invMenu=null;
 function closeInvite(){if(invMenu){invMenu.remove();invMenu=null}}
 function rejectToast(g,reason){
-  if(reason==='exists')toast(`سبق إرسال الدعوة الأولية لهذا الخريج في هذه الفعالية — شوف السجل بتفاصيله.`,{label:'عرض السجل',fn:()=>openDrawer(g.id)});
-  else if(reason==='limit')toast(`وصلت الحد (${settings().reminderMax} ${settings().reminderMax===2?'تذكيرين':'تذكير'}). الحين الخطوة يدوية: تابع الرد أو سجّل النتيجة.`);
-  else if(reason==='cooldown')toast('التذكيرات فترتها ٣ أيام — آخر رسالة كانت قريبة. خلك على الرد أو سجّل النتيجة.');
+  if(reason==='exists')toast(`سبق التواصل مع هذا الخريج في هذه الفعالية — شوف السجل بتفاصيله.`,{label:'عرض السجل',fn:()=>openDrawer(g.id)});
+  else if(reason==='limit')toast(`وصلنا الحد (${settings().reminderMax===2?'تذكيرين':'تذكير '+settings().reminderMax}). الحين الخطوة يدوية: تابع الرد أو سجّل النتيجة.`);
+  else if(reason==='cooldown')toast(`التذكير متاح بعد فترة التهدئة (${settings().reminderCooldownDays} أيام من آخر رسالة). تابع الرد أو سجّل النتيجة.`);
+  else if(reason==='state')toast('التذكير متاح فقط لمن ينتظر الرد.');
   else if(reason==='dnc')toast('هذا الخريج مستثنى من التواصل بناءً على طلبه.');
-  else if(reason==='pending')toast('فيه دعوة لهذا الخريج بانتظار التأكيد الحين.');
+  else if(reason==='pending')toast('فيه رسالة لهذا الخريج بانتظار تسجيلك للإرسال الحين.');
   else toast('ما نقدر نرسل الحين — راجع حالة الخريج.');
 }
+const sendInFlight=new Set();/* R-16: re-entrancy guard — one send at a time per alumnus */
 function sendVia(g,ch,kind){
   if(g.doNotContact){rejectToast(g,'dnc');return}
-  const r=Repo.invite(g.id,kind,ch.kind==='wa'?'whatsapp':ch.kind);
-  if(!r.ok){rejectToast(g,r.reason);return}
-  const msg=Tmpl.renderPlain(ch.template,templateVarsFor(g,null));
-  if(msg.missing.length)setTimeout(()=>toast(`ملاحظة: متغيرات ناقصة في الرسالة: ${esc(msg.missing.join('، '))}`),700);
-  const href=channelHref(g,ch,msg.out);
-  if(ch.kind==='linkedin'){copyText(msg.out,'تم نسخ رسالة LinkedIn — الصقها في التواصل مع الخريج')}
-  window.open(href,'_blank','noopener');
-  toast('الدعوة بوضع «قيد الإرسال» — أكّدها لما ترجع من التطبيق.');
-  renderAll();
+  if(sendInFlight.has(g.id))return;
+  sendInFlight.add(g.id);
+  try{
+    const r=Repo.invite(g.id,kind,ch.kind==='wa'?'whatsapp':ch.kind);
+    if(!r.ok){rejectToast(g,r.reason);return}
+    const msg=Tmpl.renderPlain(ch.template,templateVarsFor(g,null));
+    if(msg.missing.length)setTimeout(()=>toast(`ملاحظة: متغيرات ناقصة في الرسالة: ${(msg.missing.join('، '))}`),700);
+    const href=channelHref(g,ch,msg.out);/* R-28: canonical values asserted inside */
+    if(!href){toast('وسيلة التواصل غير صالحة — ما نقدر نفتح التطبيق.');return}
+    if(ch.kind==='linkedin'){copyText(msg.out,'تم نسخ رسالة LinkedIn — الصقها في التواصل مع الخريج')}
+    window.open(href,'_blank','noopener');
+    toast('سجلنا الدعوة بوضع «قيد الإرسال» — سجّل الإرسال لما ترجع من التطبيق.');
+  }finally{
+    sendInFlight.delete(g.id);
+    renderAll();
+  }
 }
 function openInvite(g,btn,kind){
   kind=kind||(confirmedInitial(g.id,activeEvent()?activeEvent().id:'')?'reminder':'initial');
   closeInvite();
   const chs=channelsFor(g,kind);
-  if(!chs.length){toast(`ما فيه وسيلة تواصل صحيحة لـ ${esc(g.name)}`);return}
+  if(!chs.length){toast(`ما فيه وسيلة تواصل صحيحة لـ ${(g.name)}`);return}
   if(chs.length===1){sendVia(g,chs[0],kind);return}
   const m=document.createElement('div');
   m.className='inv-menu';m.setAttribute('role','menu');

@@ -154,10 +154,11 @@ $('s-submit').addEventListener('click',()=>{
   validate();if(!V.ok)return;
   const g=gById(sched.gradId);
   const s=Repo.addSession({gradId:g.id,date:$('s-date').value,start:$('s-time').value,dur:+$('s-dur').value,topic:$('s-topic').value.trim()});
-  if(!s)return;
+  /* R-10: scheduling was refused (do-not-contact) — say so */
+  if(!s){if(g.doNotContact)toast('هذا الخريج مستثنى من التواصل بناءً على طلبه — ما نقدر نجدول له جلسة.');return}
   flashId=s.id;
   const bmsg=Tmpl.renderPlain('booking',templateVarsFor(g,s));
-  toast(`تمت جدولة جلسة ${esc(g.name)} · ${fmtLong(s.date)} ${fmtTime(toMin(s.start))}`,{label:'إرسال تأكيد الموعد',fn:()=>openMsgMenu(g,'booking',bmsg.out)});
+  toast(`تمت جدولة جلسة ${(g.name)} · ${fmtLong(s.date)} ${fmtTime(toMin(s.start))}`,{label:'إرسال تأكيد الموعد',fn:()=>openMsgMenu(g,'booking',bmsg.out)});
   $('s-topic').value='';sched.gradId=null;$('g-chip').hidden=true;$('combo').hidden=false;
   renderAll();
 });
@@ -166,12 +167,12 @@ $('s-submit').addEventListener('click',()=>{
 function openMsgMenu(g,tplKey,msg0,btn){
   closeInvite();
   const chs=channelsFor(g);
-  if(!chs.length){toast(`ما فيه وسيلة تواصل صحيحة لـ ${esc(g.name)}`);return}
+  if(!chs.length){toast(`ما فيه وسيلة تواصل صحيحة لـ ${(g.name)}`);return}
   let out;
   if(msg0){out=msg0}
   else if(tplKey==='thanks'){
     const sess=D.sessions.filter(s=>s.gradId===g.id&&!s.deletedAt&&s.doneAt).sort((a,b)=>String(b.doneAt).localeCompare(String(a.doneAt)))[0];
-    out=Tmpl.renderPlain('thanks',templateVarsFor(g,sess)).out;
+    out=Tmpl.renderPlain('thanks',templateVarsFor(g,sess,'thanks')).out;
   }else{
     const sess=D.sessions.filter(s=>s.gradId===g.id&&!s.deletedAt&&!s.doneAt&&diffDays(s.date,today())>=0)[0];
     out=Tmpl.renderPlain('booking',templateVarsFor(g,sess)).out;
@@ -188,7 +189,9 @@ function openMsgMenu(g,tplKey,msg0,btn){
   m.addEventListener('click',e=>{
     const it=e.target.closest('[data-ch]');if(!it)return;
     const ch=chs.find(c=>c.kind===it.dataset.ch);closeInvite();
+    /* R-28: build only from canonical values — refuse instead of launching */
     const href=channelHref(g,ch,out);
+    if(!href){toast('وسيلة التواصل غير صالحة — ما نقدر نفتح التطبيق.');return}
     if(ch.kind==='linkedin')copyText(out,'تم نسخ الرسالة — الصقها في LinkedIn مع الخريج');
     try{window.open(href,'_blank','noopener')}catch(e2){}
   });
@@ -259,7 +262,7 @@ $('sess-host').addEventListener('click',e=>{
   if(b.dataset.copy){copyText(b.dataset.copy,'تم النسخ');return}
   if(b.dataset.del){pendingDel=b.dataset.del;renderSessions();return}
   if(b.dataset.delNo){pendingDel=null;renderSessions();return}
-  if(b.dataset.delYes){const s=sessionById(b.dataset.delYes);Repo.removeSession(b.dataset.delYes);pendingDel=null;toast(`تم حذف جلسة ${esc(gNameSafe(s))} — تنقلت للمهملات لو تبي ترجعها`);renderAll()}
+  if(b.dataset.delYes){const s=sessionById(b.dataset.delYes);Repo.removeSession(b.dataset.delYes);pendingDel=null;toast(`تم حذف جلسة ${(gNameSafe(s))} — تنقلت للمهملات لو تبي ترجعها`);renderAll()}
 });
 
 /* ================= Archive (D4) ================= */
@@ -287,8 +290,10 @@ function renderArchive(){
     <th>الخريج</th><th>عنوان الجلسة</th><th>التاريخ</th><th>المدة</th><th>روابط وملاحظات</th><th>الحالة</th><th></th></tr></thead>
     <tbody>${rows.map(s=>{
       const g=gById(s.gradId);
-      const links=[s.slidesUrl?`<a class="ct-v" dir="ltr" href="${esc(s.slidesUrl)}" target="_blank" rel="noopener">${ic('eye')} العرض</a>`:'',
-        s.recordingUrl?`<a class="ct-v" dir="ltr" href="${esc(s.recordingUrl)}" target="_blank" rel="noopener">${ic('play')} التسجيل</a>`:''].filter(Boolean);
+      /* R-03: only http(s) links become clickable */
+      const su=safeUrl(s.slidesUrl),ru=safeUrl(s.recordingUrl);
+      const links=[su?`<a class="ct-v" dir="ltr" href="${esc(su)}" target="_blank" rel="noopener noreferrer">${ic('eye')} العرض</a>`:'',
+        ru?`<a class="ct-v" dir="ltr" href="${esc(ru)}" target="_blank" rel="noopener noreferrer">${ic('play')} التسجيل</a>`:''].filter(Boolean);
       return `<tr class="${s.doneAt?'':'wait-done'}">
         <td><div class="nm">${esc(g.name)}</div><div class="sub">دفعة <span class="num">${g.year}</span></div></td>
         <td>${s.topic?esc(s.topic):'<span class="sub">بدون عنوان</span>'}</td>

@@ -3,20 +3,21 @@ function currentTemplate(key){
   const t=D.templates[key];if(!t)return DEFAULT_TEMPLATE_BODIES[key]||'';
   return t.versions[t.versions.length-1].body;
 }
-function templateVarsFor(grad,session){
+function templateVarsFor(grad,session,tplKey){
   const ev=activeEvent();
-  const st=grad?D.states[grad.id+'|'+(ev?ev.id:'')]:null;
+  const st=grad?D.states[(grad.id||'')+'|'+(ev?ev.id:'')]:null;
   return {
-    'الاسم':grad?grad.name:'نورة الحربي',
-    'الجهة':grad?grad.company:'جهة عمل الخريج',
+    'الاسم':grad?grad.name:'نورة الشهري',
+    'الجهة':(grad&&grad.company)||'عملك الحالي',
     'المسؤول':grad?(memberName((st&&st.owner)||me())):'جود',
     'النادي':'نادي تقنية المستقبل (FTC)',
     'اسم الفعالية':ev?ev.name:'جلسة خريج',
     'مدة الجلسة':session?`${session.dur} دقيقة`:'45 إلى 60 دقيقة',
+    'المدة':session?`${session.dur} دقيقة`:'45 دقيقة',
     'التاريخ':session?fmtLong(session.date):'اليوم',
     'الوقت':session?fmtTime(toMin(session.start)):'٨ مساءً',
-    'موضوع الجلسة':(session&&session.topic)||'موضوع الجلسة',
-    'مكان/رابط':'الرابط/المكان يأتي من الاتفاق'
+    'موضوع الجلسة':tplKey==='thanks'?((session&&session.topic)||'الجلسة'):((session&&session.topic)||'سنتفق عليه معك'),
+    'مكان/رابط':'نرسل لك الرابط أو المكان قبل الموعد'
   };
 }
 function renderTemplate(key,vars){
