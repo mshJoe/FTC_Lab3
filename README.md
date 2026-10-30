@@ -1,4 +1,6 @@
-# بوابة FTC — الخريجين (ftc-graduates)
+<img width="1280" height="288" alt="d3ac9a61-09f4-4e09-9276-d0b30f729c10" src="https://github.com/user-attachments/assets/3e7f2a88-1de3-4534-b54e-55978923eb44" />
+
+# FTC-graduates
 
 Multi-file implementation of the FTC graduates gateway (split from `ftc-graduates-v3.html`,
 then hardened per T1–T11 — see `CHANGES.md`). Plain scripts, no build step, no server.
